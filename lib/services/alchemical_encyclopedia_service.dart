@@ -75,6 +75,12 @@ class AlchemicalEncyclopediaSnapshot {
   /// makers as well as what it made.
   final Set<String> knownElements;
 
+  /// Elements the player has found a formula that MAKES, as
+  /// [AlchemicalEncyclopediaService.elementsMade] counts them for ALCHEMY:
+  /// fewer than [knownElements], which also holds an element only kept or
+  /// only fused from.
+  final Set<String> madeElements;
+
   /// Species families the same way ('Let'…).
   final Set<String> knownFamilies;
 
@@ -91,6 +97,7 @@ class AlchemicalEncyclopediaSnapshot {
     required this.discoveredFamilyOutcomeKeys,
     required this.discoveredElementOutcomeKeys,
     this.knownElements = const {},
+    this.madeElements = const {},
     this.knownFamilies = const {},
     this.familyFaces = const {},
   });
@@ -280,6 +287,10 @@ class AlchemicalEncyclopediaService {
       discoveredFamilyOutcomeKeys: discoveredFamilyOutcomeKeys,
       discoveredElementOutcomeKeys: discoveredElementOutcomeKeys,
       knownElements: knownElements,
+      madeElements: _madeBy(
+        recipes.elementRecipes,
+        discoveredElementOutcomeKeys,
+      ).made,
       knownFamilies: knownFamilies,
       familyFaces: familyFaces,
     );
@@ -385,11 +396,22 @@ class AlchemicalEncyclopediaService {
       legacyPairKey: _legacyElementDiscoveredKey,
       recipesByPair: recipes.elementByPair,
     );
+    return _madeBy(recipes.elementRecipes, found);
+  }
+
+  /// What the found [outcomeKeys] of [recipes] make, and what they all make:
+  /// one reading for ALCHEMY's count and the Codex's lit cells.
+  static ({Set<String> made, Set<String> all}) _madeBy(
+    List<EncyclopediaRecipeEntry> recipes,
+    Set<String> outcomeKeys,
+  ) {
     final made = <String>{}, all = <String>{};
-    for (final r in recipes.elementRecipes) {
+    for (final r in recipes) {
       for (final o in r.outcomes) {
         all.add(o.result);
-        if (found.contains(r.outcomePathKey(o.result))) made.add(o.result);
+        if (outcomeKeys.contains(r.outcomePathKey(o.result))) {
+          made.add(o.result);
+        }
       }
     }
     return (made: made, all: all);

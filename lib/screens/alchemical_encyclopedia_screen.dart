@@ -475,6 +475,9 @@ class _ElementTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final known = data.knownElements;
+    // Lit and counted once a formula that makes it is found, as ALCHEMY
+    // counts them; met in a creature or as a maker only, it shows dim.
+    final made = data.madeElements;
     return ListView(
       key: const PageStorageKey('codex-elements'),
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
@@ -484,9 +487,9 @@ class _ElementTable extends StatelessWidget {
             Expanded(
               child: _Tally(
                 palette: palette,
-                label: 'ELEMENTS KNOWN',
+                label: 'ELEMENTS MADE',
                 value: Elements.values
-                    .where((e) => known.contains(_title(e.name)))
+                    .where((e) => made.contains(_title(e.name)))
                     .length,
                 total: Elements.values.length,
                 color: _kGilt,
@@ -511,10 +514,11 @@ class _ElementTable extends StatelessWidget {
             title: group.displayName.toUpperCase(),
             color: group.color,
             names: group.elementTypes,
-            known: known,
+            counted: made,
             cell: (name) => _ElementCell(
               name: name,
               known: known.contains(name),
+              made: made.contains(name),
               live: live,
               fresh: fresh.contains(name),
               onTap: () => onOpen(name),
@@ -545,7 +549,7 @@ class _GroupRow extends StatelessWidget {
     required this.title,
     required this.color,
     required this.names,
-    required this.known,
+    required this.counted,
     required this.cell,
   });
 
@@ -553,12 +557,14 @@ class _GroupRow extends StatelessWidget {
   final String title;
   final Color color;
   final List<String> names;
-  final Set<String> known;
+
+  /// The names its "have/of" counts.
+  final Set<String> counted;
   final Widget Function(String name) cell;
 
   @override
   Widget build(BuildContext context) {
-    final have = names.where(known.contains).length;
+    final have = names.where(counted.contains).length;
     final ink = palette.isDark
         ? Color.lerp(color, Colors.white, 0.25)!
         : Color.lerp(color, Colors.black, 0.35)!;
@@ -621,26 +627,33 @@ class _GlassCase extends StatelessWidget {
   );
 }
 
+/// An element's cell, in one of three states: not yet met (the empty
+/// bulb), met but no formula found that makes it (its orb dim and still),
+/// and made (its orb lit and turning).
 class _ElementCell extends StatelessWidget {
   const _ElementCell({
     required this.name,
     required this.known,
+    required this.made,
     required this.live,
     required this.fresh,
     required this.onTap,
   });
 
   final String name;
-  final bool known, live, fresh;
+  final bool known, made, live, fresh;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final tint = _elementTint(name);
+    final dim = known && !made;
     final frame = fresh
         ? _kGilt
-        : known
+        : made
         ? tint.withValues(alpha: 0.75)
+        : dim
+        ? Color.lerp(const Color(0xFF3A404C), tint, 0.3)!
         : const Color(0xFF3A404C);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -658,12 +671,13 @@ class _ElementCell extends StatelessWidget {
                   child: _Orb(
                     name: name,
                     locked: !known,
+                    dim: dim,
                     radius: 19,
                     live: live,
                   ),
                 ),
                 const SizedBox(height: 4),
-                _CellName(name: name, known: known),
+                _CellName(name: name, known: known, made: made),
               ],
             ),
             if (fresh) const Positioned(top: -2, right: 0, child: _NewPip()),
@@ -675,10 +689,14 @@ class _ElementCell extends StatelessWidget {
 }
 
 class _CellName extends StatelessWidget {
-  const _CellName({required this.name, required this.known});
+  const _CellName({
+    required this.name,
+    required this.known,
+    required this.made,
+  });
 
   final String name;
-  final bool known;
+  final bool known, made;
 
   @override
   Widget build(BuildContext context) => FittedBox(
@@ -688,7 +706,11 @@ class _CellName extends StatelessWidget {
       maxLines: 1,
       style: _mono(
         10.5,
-        known ? _kGlassInk : _kGlassMuted.withValues(alpha: 0.7),
+        made
+            ? _kGlassInk
+            : known
+            ? _kGlassMuted
+            : _kGlassMuted.withValues(alpha: 0.7),
         weight: FontWeight.w800,
         spacing: 0.8,
       ),
@@ -734,12 +756,16 @@ class _Orb extends StatefulWidget {
     required this.name,
     required this.locked,
     required this.radius,
+    this.dim = false,
     this.live = false,
   });
 
   final String name;
   final bool locked;
   final double radius;
+
+  /// Met but not yet made: faded and still, whatever [live] says.
+  final bool dim;
   final bool live;
 
   @override
@@ -757,7 +783,8 @@ class _OrbState extends State<_Orb> with GlyphClockLease<_Orb> {
   );
 
   @override
-  bool get wantsClock => widget.live && _ticking && !widget.locked;
+  bool get wantsClock =>
+      widget.live && _ticking && !widget.locked && !widget.dim;
 
   @override
   void didChangeDependencies() {
@@ -785,11 +812,13 @@ class _OrbState extends State<_Orb> with GlyphClockLease<_Orb> {
   }
 
   void _draw(Canvas canvas, Offset c, double t) => _orb.paint(canvas, c, t);
+  void _drawDim(Canvas canvas, Offset c, double t) =>
+      _orb.paint(canvas, c, t, fade: 0.38);
 
   @override
   Widget build(BuildContext context) => RepaintBoundary(
     child: CustomPaint(
-      painter: _ClockPainter(_draw, glyphClock),
+      painter: _ClockPainter(widget.dim ? _drawDim : _draw, glyphClock),
       size: Size.square(widget.radius * 2.6),
     ),
   );
@@ -1016,7 +1045,7 @@ class _SpeciesCell extends StatelessWidget {
                         ),
                 ),
                 const SizedBox(height: 4),
-                _CellName(name: family, known: known),
+                _CellName(name: family, known: known, made: known),
               ],
             ),
             if (fresh) const Positioned(top: -2, right: 0, child: _NewPip()),

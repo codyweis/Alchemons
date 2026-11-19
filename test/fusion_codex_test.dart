@@ -102,6 +102,25 @@ void main() {
       expect(data.familyFaces, isEmpty);
     });
 
+    test('only an element a found formula makes is lit, as ALCHEMY counts '
+        'it', () async {
+      final db = AlchemonsDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      await _seed(db);
+
+      final data = await AlchemicalEncyclopediaService.loadSnapshot(
+        db: db,
+        catalog: _catalog(),
+      );
+      final alchemy = await AlchemicalEncyclopediaService.elementsMade(db);
+
+      // Air + Water → Ice makes Ice; Fire, Water and Air are only met (a
+      // creature kept, or a maker), so they show dim.
+      expect(data.madeElements, {'Ice'});
+      expect(data.madeElements, alchemy.made);
+      expect(data.knownElements, containsAll(<String>['Fire', 'Water']));
+    });
+
     test('an element\'s formulas: what makes it, what it fuses into', () async {
       final db = AlchemonsDatabase(NativeDatabase.memory());
       addTearDown(db.close);
