@@ -25,6 +25,7 @@ import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/avatar_widget.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:drift/native.dart';
@@ -37,9 +38,9 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // The profile on a phone, with the app's own fonts (fetched from Google, so
-// run with network): the division header over its realm, each section down
-// the page, signed out and signed in, the developer tools open, and a
-// sign-in dialog. Volcanic and verdant own titles and fusion styles
+// run with network): the division header over its realm and each section
+// down the page; then SETTINGS from its gear (s*): each section, signed out
+// and signed in, the developer tools open, and a sign-in dialog. Volcanic and verdant own titles and fusion styles
 // (1b_cosmetics); the other two show those rows with nothing owned.
 //
 //   PROFILE_OUT=/tmp/profile flutter test \
@@ -213,6 +214,7 @@ void main() {
         required bool signedIn,
         bool activeHere = false,
         bool fromHome = false,
+        bool settings = false,
       }) async {
         await tester.pumpWidget(
           MultiProvider(
@@ -267,6 +269,8 @@ void main() {
                       RepaintBoundary(key: key, child: child!),
                   home: fromHome
                       ? const _MiniHome()
+                      : settings
+                      ? SettingsScreen(key: UniqueKey())
                       : ProfileScreen(() {}, key: UniqueKey()),
                 );
               },
@@ -296,44 +300,46 @@ void main() {
       await shoot('1d_title_popup_blue');
       Navigator.of(tester.element(find.text('WEAR'))).pop();
       await settle(6);
-      await scrollShot('2_journal_display');
-      await scrollShot('3_sound_notifications');
-      await scrollShot('4_account');
-      await scrollShot('5_bottom', by: 1500);
+      await scrollShot('2_friends_journal');
+      await scrollShot('2b_bottom', by: 1500);
+
+      // The gear in the top bar: SETTINGS.
+      await tester.tap(find.byIcon(AppIcons.settings_rounded));
+      await settle(12);
+      await shoot('s1_settings');
+      await scrollShot('s2_sound_notifications');
+      await scrollShot('s3_account');
+      await scrollShot('s4_bottom', by: 1500);
 
       // The developer tools, switched on.
       await tester.ensureVisible(find.text('DEBUG TOOLS'));
       await settle(4);
       await tester.tap(find.text('DEBUG TOOLS'));
       await settle(10);
-      await scrollShot('6_debug_open', by: 300);
+      await scrollShot('s5_debug_open', by: 300);
 
       // Signed in, on a device that is not the account's active one.
-      await show(signedIn: true);
-      await tester.dragFrom(const Offset(195, 600), const Offset(0, -2000));
-      await settle(8);
+      await show(signedIn: true, settings: true);
       await tester.scrollUntilVisible(
         find.text('TRANSFER ACCOUNT'),
-        -200,
+        200,
         scrollable: find.byType(Scrollable).first,
       );
       await settle(8);
-      await shoot('7_signed_in');
+      await shoot('s6_signed_in');
 
       // Signed in on the account's device: it saves on its own.
-      await show(signedIn: true, activeHere: true);
-      await tester.dragFrom(const Offset(195, 600), const Offset(0, -2000));
-      await settle(8);
+      await show(signedIn: true, activeHere: true, settings: true);
       await tester.scrollUntilVisible(
         find.text('TRANSFER ACCOUNT'),
-        -200,
+        200,
         scrollable: find.byType(Scrollable).first,
       );
       await settle(8);
-      await shoot('7b_signed_in_saving');
+      await shoot('s6b_signed_in_saving');
 
       // A sign-in dialog.
-      await show(signedIn: false);
+      await show(signedIn: false, settings: true);
       await tester.scrollUntilVisible(
         find.text('SIGN IN'),
         300,
@@ -342,7 +348,7 @@ void main() {
       await settle(4);
       await tester.tap(find.text('SIGN IN'));
       await settle(10);
-      await shoot('8_sign_in_dialog');
+      await shoot('s7_sign_in_dialog');
 
       // A wrong password stays in the dialog, under the fields.
       await tester.enterText(find.byType(TextField).first, 'me@example.com');
@@ -350,7 +356,7 @@ void main() {
       await tester.tap(find.text('SIGN IN').last);
       await settle(10);
       expect(find.text('Email or password is incorrect.'), findsOneWidget);
-      await shoot('8b_wrong_password');
+      await shoot('s7b_wrong_password');
 
       // Larger text, as the Fold's monospace runs: nothing may overflow
       // (an overflow fails the test).
@@ -371,6 +377,13 @@ void main() {
         await settle(4);
       }
       await shoot('9b_large_text_lower');
+      await show(signedIn: true, settings: true);
+      await shoot('s8_large_text');
+      for (var i = 0; i < 6; i++) {
+        await tester.dragFrom(const Offset(195, 600), const Offset(0, -600));
+        await settle(4);
+      }
+      await shoot('s8b_large_text_lower');
 
       // The way in, from the home avatar: the orb flies out of its
       // medallion into the header, then the realm pours out of it.

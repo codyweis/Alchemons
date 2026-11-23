@@ -16,6 +16,7 @@ import 'package:alchemons/models/home_biome.dart';
 import 'package:alchemons/screens/friends/friend_home_screen.dart';
 import 'package:alchemons/screens/friends/friend_planet_screen.dart';
 import 'package:alchemons/screens/friends/friends_panel.dart';
+import 'package:alchemons/screens/friends/friends_screen.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -305,77 +306,101 @@ void main() {
       await shoot('planets');
     }
 
-    // The friends' best runs: Ash is furthest; Marlowe and Juniper have
-    // none (or theirs could not be read).
-    const bests = <SurvivalBestRun?>[
-      SurvivalBestRun(wave: 23, score: 48200),
-      SurvivalBestRun(wave: 31, score: 102400),
-      null,
-      SurvivalBestRun(wave: 8, score: 9100),
-      null,
+    // Eight friends: two in the game, two seen lately, the rest never said.
+    const names = [
+      'Rowan',
+      'Ash',
+      'Marlowe',
+      'Wren',
+      'Juniper',
+      'Sorrel',
+      'Hale',
+      'Bram',
     ];
-    Future<void> panel(String name, SurvivalBestRun? mine) async {
+    final now = DateTime.now();
+    Future<void> panel(
+      String name, {
+      int count = 8,
+      bool requests = true,
+      bool all = false,
+      double textScale = 1,
+    }) async {
       portrait();
+      tester.platformDispatcher.textScaleFactorTestValue = textScale;
       final friends = _FakeFriends(
-        myBest: mine,
         friends: [
-          for (final (i, (_, look)) in looks.skip(1).take(5).indexed)
+          for (final (i, (_, look)) in looks.skip(1).take(count).indexed)
             FriendCard(
               uid: 'u$i',
-              name: const ['Rowan', 'Ash', 'Marlowe', 'Wren', 'Juniper'][i],
+              name: names[i],
               faction: 'earthen',
               planet: look,
-              survival: bests[i],
             ),
         ],
-        incoming: const [
-          FriendRequest(
-            from: 'x1',
-            to: 'me',
-            fromName: 'Sable',
-            fromFaction: 'volcanic',
-          ),
+        incoming: [
+          if (requests)
+            const FriendRequest(
+              from: 'x1',
+              to: 'me',
+              fromName: 'Sable',
+              fromFaction: 'volcanic',
+            ),
         ],
-        outgoing: const [
-          FriendRequest(
-            from: 'me',
-            to: 'x2',
-            fromName: 'Me',
-            toCode: 'QK7MX2PB',
-          ),
+        outgoing: [
+          if (requests)
+            const FriendRequest(
+              from: 'me',
+              to: 'x2',
+              fromName: 'Me',
+              toCode: 'QK7MX2PB',
+            ),
         ],
-        online: const {'u0', 'u3'},
+        online: const {'u3', 'u6'},
         seen: const {'u1': 'Seen 2 hours ago', 'u2': 'Seen 5 minutes ago'},
+        seenTimes: {
+          'u1': now.subtract(const Duration(hours: 2)),
+          'u2': now.subtract(const Duration(minutes: 5)),
+          'u3': now,
+          'u6': now,
+        },
       );
       final theme = FactionTheme.scorchForge();
       final palette = BracketPalette.fromTheme(theme);
       await tester.pumpWidget(
         app(
-          Scaffold(
-            backgroundColor: palette.bg0,
-            body: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: ColoredBox(
-                  color: palette.bg1,
-                  child: FriendsPanel(
-                    palette: palette,
-                    accent: bracketReadableAccent(theme),
-                    onSignIn: () {},
+          all
+              ? const FriendsScreen()
+              : Scaffold(
+                  backgroundColor: palette.bg0,
+                  body: SafeArea(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: ColoredBox(
+                        color: palette.bg1,
+                        child: FriendsPanel(
+                          palette: palette,
+                          accent: bracketReadableAccent(theme),
+                          onSignIn: () {},
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ),
           friends: friends,
         ),
       );
       await settle(4);
       await shoot(name);
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
     }
 
     if (wants('panel')) {
-      await panel('panel', const SurvivalBestRun(wave: 19, score: 35000));
+      await panel('panel');
+      await panel('panel_few', count: 2, requests: false);
+      await panel('panel_empty', count: 0, requests: false);
+      // Larger text, as the Fold's monospace runs: nothing may overflow.
+      await panel('panel_large_text', textScale: 1.3);
+      await panel('panel_all', all: true, requests: false);
     }
 
     if (wants('avatar')) {
@@ -581,14 +606,14 @@ class _FakeFriends extends ChangeNotifier implements FriendService {
     this.outgoing = const [],
     this.online = const {},
     this.seen = const {},
-    this.myBest,
+    this.seenTimes = const {},
   });
-
-  @override
-  final SurvivalBestRun? myBest;
 
   final Set<String> online;
   final Map<String, String> seen;
+  final Map<String, DateTime> seenTimes;
+  @override
+  DateTime? seenAt(String uid) => seenTimes[uid];
   @override
   bool isOnline(String uid) => online.contains(uid);
   @override

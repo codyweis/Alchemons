@@ -1028,7 +1028,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             onBuy: buyPack,
             // Gold is credited to an account, so the button leads to
             // signing in rather than to a dead end.
-            onSignIn: () => Navigator.of(context).push(ProfileScreen.route()),
+            onSignIn: () => Navigator.of(context).push(SettingsScreen.route()),
           ),
         );
       },

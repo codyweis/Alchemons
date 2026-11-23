@@ -655,7 +655,6 @@ void main() {
       });
       expect(survivalBestFromDoc(published)!.figures, 'W23 · 48.2K');
       expect(published['team'], team);
-      expect(friends.myBest!.wave, 23);
       // Nothing about how strong they are, nor their names.
       expect(jsonEncode(published['team']), isNot(contains('level')));
 
@@ -725,7 +724,6 @@ void main() {
       final db = AlchemonsDatabase(NativeDatabase.memory());
       addTearDown(db.close);
       SharedPreferences.setMockInitialValues({'friends.code.aaaa': 'HX4N7QRT'});
-      await db.saveSurvivalHighScore(wave: 19, score: 35000, timeMs: 1);
       final fs = FakeFirebaseFirestore();
       for (final uid in ['bbbb', 'cccc', 'dddd']) {
         await befriend(fs, uid);
@@ -752,8 +750,6 @@ void main() {
       expect(byUid['bbbb']!.survival!.team, team);
       expect(byUid['cccc']!.survival, isNull);
       expect(byUid['dddd']!.survival, isNull);
-      // The player's own, beside them.
-      expect(friends.myBest!.figures, 'W19 · 35.0K');
       await sent('aaaa');
     });
 
@@ -819,13 +815,8 @@ service cloud.firestore {
     testWidgets('a friend without one shows nothing for it', (tester) async {
       await tester.pumpWidget(
         host(
-          const Column(
-            children: [
-              BestRunLine(run: null),
-              FriendBestRunBlock(
-                friend: FriendCard(uid: 'c', name: 'Ash'),
-              ),
-            ],
+          const FriendBestRunBlock(
+            friend: FriendCard(uid: 'c', name: 'Ash'),
           ),
         ),
       );

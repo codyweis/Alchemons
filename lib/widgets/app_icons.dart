@@ -116,6 +116,7 @@ class AppIcons {
       PhosphorIconsBold.cloudArrowDown;
   static const IconData cloud_rounded = PhosphorIconsBold.cloud;
   static const IconData cloud_upload_rounded = PhosphorIconsBold.cloudArrowUp;
+  static const IconData copy_rounded = PhosphorIconsBold.copy;
   static const IconData currency_exchange_rounded =
       PhosphorIconsBold.currencyCircleDollar;
   static const IconData cyclone_rounded = PhosphorIconsBold.tornado;

@@ -271,10 +271,6 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
   bool _publishing = false;
   bool _disposed = false;
 
-  /// This player's own best Survival run, as last read: set against their
-  /// friends' on the list.
-  SurvivalBestRun? _myBest;
-
   /// Signed in with an account that can use friends.
   bool get available =>
       account.initialized && account.isConfigured && account.isSignedIn;
@@ -292,10 +288,6 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Why the last refresh failed, if it did.
   String? get error => _error;
-
-  /// This player's best Survival run, once the lists have been read; null
-  /// before they have one.
-  SurvivalBestRun? get myBest => _myBest;
 
   FirebaseFirestore get _fs => _firestore ??= FirebaseFirestore.instance;
 
@@ -334,7 +326,6 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
     _outgoing = const [];
     _loaded = false;
     _error = null;
-    _myBest = null;
     _publishTimer?.cancel();
     _stopListening();
     _stopBeating();
@@ -570,7 +561,6 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
           if (FriendRequest.fromDoc(d.data()) case final r?)
             if (!friendIds.contains(r.to)) r,
       ];
-      _myBest = await _readMyBest();
       _loaded = true;
       // After the read, so the first snapshots match it and change nothing.
       _listenLists(me);
@@ -612,15 +602,6 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
       return survivalBestFromDoc(snap.data());
     } catch (e) {
       debugPrint('FriendService: best run of $uid not read: $e');
-      return null;
-    }
-  }
-
-  Future<SurvivalBestRun?> _readMyBest() async {
-    try {
-      return await SurvivalBestRun.load(db);
-    } catch (e) {
-      debugPrint('FriendService: own best run not read: $e');
       return null;
     }
   }
@@ -790,6 +771,10 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
     final s = _seen[uid];
     return s != null && !s.away && DateTime.now().difference(s.at) < onlineFor;
   }
+
+  /// When [uid]'s game last said they were here; null when it never has
+  /// (or FRIENDS is not showing). FRIENDS puts the latest first.
+  DateTime? seenAt(String uid) => _seen[uid]?.at;
 
   /// "Seen 2 hours ago" for a friend not in the game now; null while they
   /// are, or when their game has never said.
@@ -1009,7 +994,6 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
     final key = 'friends.published.$me.survival';
     try {
       final best = await SurvivalBestRun.load(db);
-      if (_uid == me && !_disposed) _myBest = best;
       if (best == null) {
         if (prefs.getString(key) == null) return;
         await _survivalBest(me).delete().timeout(_wait);

@@ -1,10 +1,12 @@
 // lib/screens/friends/friends_panel.dart
 //
-// FRIENDS on the profile: the player's own code to give out, a way to enter
-// someone else's, the requests waiting either way, and their friends' home
-// planets — a tap on one opens that friend's page (friend_planet_screen.dart).
-// Under each planet, that friend's best Survival run, and beside FRIENDS the
-// player's own (friend_best_run.dart).
+// FRIENDS on the profile. First what waits on the player (requests to
+// answer), then their friends' home planets, those in the game first: on
+// the profile one row that scrolls sideways, with ALL to every friend on a
+// page of their own (friends_screen.dart), three across. A tap on a planet
+// opens that friend's page (friend_planet_screen.dart). Then the requests
+// the player sent, and last their own code — tapped, it is copied — with
+// ADD FRIEND beside it.
 //
 // Signed out, it only says what signing in would bring. Laid out as the
 // profile's own rows are, inside its panel.
@@ -14,14 +16,15 @@ import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/friend_home.dart';
-import 'package:alchemons/screens/friends/friend_best_run.dart';
 import 'package:alchemons/screens/friends/friend_planet_screen.dart';
+import 'package:alchemons/screens/friends/friends_screen.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/home_planet_view.dart';
@@ -45,19 +48,27 @@ TextStyle _prose(BuildContext context, Color color, {double size = 12.5}) =>
 
 final ForgeTokens _tokens = ForgeTokens(factionThemeFor(null));
 
+/// How many planets the profile's row shows whole; past that, ALL.
+const int _rowShows = 3;
+
 class FriendsPanel extends StatefulWidget {
   const FriendsPanel({
     super.key,
     required this.palette,
     required this.accent,
     required this.onSignIn,
+    this.all = false,
   });
 
   final BracketPalette palette;
   final Color accent;
 
-  /// Opens the account's sign-in (the profile's ACCOUNT has the rest).
+  /// Opens the account's sign-in (SETTINGS has the rest).
   final VoidCallback onSignIn;
+
+  /// Every friend's planet, three across (the FRIENDS page); otherwise one
+  /// row of them that scrolls sideways (the profile).
+  final bool all;
 
   @override
   State<FriendsPanel> createState() => _FriendsPanelState();
@@ -143,99 +154,194 @@ class _FriendsPanelState extends State<FriendsPanel> {
     );
   }
 
-  List<Widget> _signedIn(FriendService friends) {
-    final code = friends.code;
-    final mine = friends.myBest;
-    return [
+  List<Widget> _signedIn(FriendService friends) => [
+    if (friends.error != null)
       _row(
-        title: 'YOUR CODE',
-        text:
-            'Give it to a friend. Once one of you accepts the other, you can '
-            "both visit each other's homes.",
-        trailing: code == null
-            ? null
-            : _quiet('COPY', () {
-                unawaited(Clipboard.setData(ClipboardData(text: code)));
-                HapticFeedback.selectionClick();
-                showAppSnack('Code copied.', fallbackContext: context);
-              }),
-        below: Text(
-          code ?? (friends.loading ? '…' : '—'),
-          style: _mono(22, _p.ink, spacing: 4),
-        ),
+        title: 'FRIENDS',
+        text: friends.error!,
+        trailing: _quiet('RETRY', () => unawaited(friends.refresh())),
       ),
+    for (final r in friends.incoming)
       _row(
-        title: 'ADD A FRIEND',
-        text: 'Enter their code.',
-        trailing: BracketButton(
-          label: 'ADD',
-          height: 36,
-          palette: _p,
-          accent: widget.accent,
-          enabled: code != null,
-          onTap: () => _add(friends),
-        ),
-      ),
-      if (friends.error != null)
-        _row(
-          title: 'FRIENDS',
-          text: friends.error!,
-          trailing: _quiet('RETRY', () => unawaited(friends.refresh())),
-        ),
-      for (final r in friends.incoming)
-        _row(
-          title: r.fromName.toUpperCase(),
-          text: 'Wants to be friends${_division(r.fromFaction)}.',
-          below: Row(
-            children: [
-              Expanded(
-                child: BracketButton(
-                  label: 'ACCEPT',
-                  height: 38,
-                  palette: _p,
-                  accent: widget.accent,
-                  onTap: () => _do(() => friends.accept(r)),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _quiet('DECLINE', () => _do(() => friends.dismiss(r))),
-              ),
-            ],
-          ),
-        ),
-      for (final r in friends.outgoing)
-        _row(
-          title: 'REQUEST SENT',
-          text: r.toCode == null
-              ? 'Waiting for them to accept.'
-              : 'Waiting for ${FriendCode.pretty(r.toCode!)} to accept.',
-          trailing: _quiet('CANCEL', () => _do(() => friends.dismiss(r))),
-        ),
-      _row(
-        title: friends.friends.isEmpty
-            ? 'FRIENDS'
-            : 'FRIENDS · ${friends.friends.length}',
-        text: friends.friends.isEmpty
-            ? (friends.loading && !friends.loaded
-                  ? 'Loading…'
-                  : 'No friends yet.')
-            : 'Tap a planet to visit.',
-        trailing: friends.friends.isEmpty || mine == null
-            ? null
-            : MyBestRun(run: mine),
-        below: friends.friends.isEmpty
-            ? null
-            : _PlanetGrid(
-                friends: friends.friends,
-                isOnline: friends.isOnline,
-                seenLabel: friends.seenLabel,
+        title: r.fromName.toUpperCase(),
+        text: 'Wants to be friends${_division(r.fromFaction)}.',
+        below: Row(
+          children: [
+            Expanded(
+              child: BracketButton(
+                label: 'ACCEPT',
+                height: 38,
                 palette: _p,
-                onTap: (f) =>
-                    Navigator.of(context).push(FriendPlanetScreen.route(f)),
+                accent: widget.accent,
+                onTap: () => _do(() => friends.accept(r)),
               ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _quiet('DECLINE', () => _do(() => friends.dismiss(r))),
+            ),
+          ],
+        ),
       ),
-    ];
+    _planets(friends),
+    for (final r in friends.outgoing)
+      _row(
+        title: 'REQUEST SENT',
+        text: r.toCode == null
+            ? 'Waiting for them to accept.'
+            : 'Waiting for ${FriendCode.pretty(r.toCode!)} to accept.',
+        trailing: _quiet('CANCEL', () => _do(() => friends.dismiss(r))),
+      ),
+    _code(friends),
+  ];
+
+  /// FRIENDS · n and their planets, those in the game first, then the most
+  /// lately seen.
+  Widget _planets(FriendService friends) {
+    final list = [...friends.friends];
+    if (list.isEmpty) {
+      return _row(
+        title: 'FRIENDS',
+        text: friends.loading && !friends.loaded
+            ? 'Loading…'
+            : 'No friends yet. Give a friend your code, or add theirs.',
+      );
+    }
+    final seenAt = {for (final f in list) f.uid: friends.seenAt(f.uid)};
+    int byPresence(FriendCard a, FriendCard b) {
+      final online = (friends.isOnline(b.uid) ? 1 : 0).compareTo(
+        friends.isOnline(a.uid) ? 1 : 0,
+      );
+      if (online != 0) return online;
+      final x = seenAt[a.uid], y = seenAt[b.uid];
+      if (x != y) {
+        if (x == null) return 1;
+        if (y == null) return -1;
+        final later = y.compareTo(x);
+        if (later != 0) return later;
+      }
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    }
+
+    list.sort(byPresence);
+    final title = 'FRIENDS · ${list.length}';
+    void open(FriendCard f) =>
+        Navigator.of(context).push(FriendPlanetScreen.route(f));
+    // "5 minutes ago" under the name, which says who was seen; their page
+    // says it whole ("Seen 5 minutes ago").
+    final now = DateTime.now();
+    String? lastSeen(String uid) {
+      final at = friends.seenAt(uid);
+      return friends.isOnline(uid) || at == null ? null : agoLabel(at, now);
+    }
+
+    if (widget.all) {
+      return _row(
+        title: title,
+        below: _PlanetGrid(
+          friends: list,
+          isOnline: friends.isOnline,
+          seenLabel: lastSeen,
+          palette: _p,
+          onTap: open,
+        ),
+      );
+    }
+    // The row runs to the panel's edges, so a planet past the last whole
+    // one shows at the edge and the row reads as one that scrolls.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                Expanded(child: Text(title, style: _mono(11.5, _p.ink))),
+                if (list.length > _rowShows)
+                  _quiet(
+                    'ALL',
+                    () => Navigator.of(context).push(FriendsScreen.route()),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _PlanetRow(
+            friends: list,
+            isOnline: friends.isOnline,
+            seenLabel: lastSeen,
+            palette: _p,
+            onTap: open,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// YOUR CODE, copied when tapped, and ADD FRIEND for theirs.
+  Widget _code(FriendService friends) {
+    final code = friends.code;
+    return Padding(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('YOUR CODE', style: _mono(11.5, _p.ink)),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: code == null
+                      ? null
+                      : context.soundTap(() {
+                          unawaited(
+                            Clipboard.setData(ClipboardData(text: code)),
+                          );
+                          HapticFeedback.selectionClick();
+                          showAppSnack(
+                            'Code copied.',
+                            fallbackContext: context,
+                          );
+                        }),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            code ?? (friends.loading ? '…' : '—'),
+                            style: _mono(20, _p.ink, spacing: 3),
+                          ),
+                        ),
+                      ),
+                      if (code != null) ...[
+                        const SizedBox(width: 8),
+                        Icon(AppIcons.copy_rounded, size: 15, color: _p.muted),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          BracketButton(
+            label: 'ADD FRIEND',
+            height: 38,
+            palette: _p,
+            accent: widget.accent,
+            enabled: code != null,
+            onTap: () => _add(friends),
+          ),
+        ],
+      ),
+    );
   }
 
   String _division(String? faction) {
@@ -312,9 +418,59 @@ class _FriendsPanelState extends State<FriendsPanel> {
   );
 }
 
-/// Friends' planets, three across, each still, with its owner's name: a
-/// green dot by it while they are in the game, their best Survival run
-/// under it, and when they were last seen.
+/// The profile's row of friends' planets, scrolling sideways. Each is
+/// drawn once and kept (a repaint boundary), so moving the row only moves
+/// pictures.
+class _PlanetRow extends StatelessWidget {
+  const _PlanetRow({
+    required this.friends,
+    required this.isOnline,
+    required this.seenLabel,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final List<FriendCard> friends;
+  final bool Function(String uid) isOnline;
+  final String? Function(String uid) seenLabel;
+  final BracketPalette palette;
+  final ValueChanged<FriendCard> onTap;
+
+  /// A little narrower than a third of the row, so a fourth planet shows
+  /// at the edge.
+  static const double _width = 96;
+
+  @override
+  Widget build(BuildContext context) {
+    final seen = {for (final f in friends) f.uid: seenLabel(f.uid)};
+    final anySeen = seen.values.any((s) => s != null);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (i, f) in friends.indexed) ...[
+            if (i > 0) const SizedBox(width: 10),
+            RepaintBoundary(
+              child: _PlanetTile(
+                friend: f,
+                width: _width,
+                online: isOnline(f.uid),
+                seen: anySeen ? (seen[f.uid] ?? '') : null,
+                palette: palette,
+                onTap: () => onTap(f),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Every friend's planet, three across: the FRIENDS page.
 class _PlanetGrid extends StatelessWidget {
   const _PlanetGrid({
     required this.friends,
@@ -327,7 +483,6 @@ class _PlanetGrid extends StatelessWidget {
   final List<FriendCard> friends;
   final bool Function(String uid) isOnline;
   final String? Function(String uid) seenLabel;
-
   final BracketPalette palette;
   final ValueChanged<FriendCard> onTap;
 
@@ -336,7 +491,6 @@ class _PlanetGrid extends StatelessWidget {
     // Every tile keeps a line when any has one, so they stay one height.
     final seen = {for (final f in friends) f.uid: seenLabel(f.uid)};
     final anySeen = seen.values.any((s) => s != null);
-    final anyBest = friends.any((f) => f.survival != null);
     return LayoutBuilder(
       builder: (context, box) {
         const gap = 10.0;
@@ -346,92 +500,118 @@ class _PlanetGrid extends StatelessWidget {
           runSpacing: gap,
           children: [
             for (final f in friends)
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: context.soundTap(() => onTap(f)),
-                child: Container(
-                  width: w,
-                  color: palette.bg0,
-                  padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
-                  child: Column(
-                    children: [
-                      Stack(
-                        children: [
-                          // The glow fades out before the tile's edge, and
-                          // nothing it wears reaches the next one.
-                          ClipRect(
-                            child: ShaderMask(
-                              blendMode: BlendMode.dstIn,
-                              shaderCallback: (rect) => const RadialGradient(
-                                colors: [Color(0xFFFFFFFF), Color(0x00FFFFFF)],
-                                stops: [0.62, 1.0],
-                              ).createShader(rect),
-                              child: SizedBox.square(
-                                dimension: w - 8,
-                                // Not built yet: the plain grey one, dim.
-                                child: Opacity(
-                                  opacity: f.planet == null ? 0.4 : 1,
-                                  child: HomePlanetView(
-                                    look: f.planet,
-                                    fill: 0.62,
-                                    animate: false,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (isOnline(f.uid)) ...[
-                            const HomeNoticeDot(
-                              color: kFriendOnlineColor,
-                              size: 8,
-                            ),
-                            const SizedBox(width: 5),
-                          ],
-                          Flexible(
-                            child: Text(
-                              f.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: _mono(10.5, palette.ink, spacing: 0.8),
-                            ),
-                          ),
-                          // Their trade table waits on this player.
-                          if (context.select<TradeService?, bool>(
-                            (t) => t?.attentionWith(f.uid) ?? false,
-                          )) ...[
-                            const SizedBox(width: 5),
-                            HomeNoticeDot(color: _tokens.rewardGold, size: 8),
-                          ],
-                        ],
-                      ),
-                      if (anyBest) ...[
-                        const SizedBox(height: 3),
-                        BestRunLine(run: f.survival, keep: true),
-                      ],
-                      if (anySeen) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          seen[f.uid] ?? '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: _prose(context, palette.muted, size: 10),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+              _PlanetTile(
+                friend: f,
+                width: w,
+                online: isOnline(f.uid),
+                seen: anySeen ? (seen[f.uid] ?? '') : null,
+                palette: palette,
+                onTap: () => onTap(f),
               ),
           ],
         );
       },
+    );
+  }
+}
+
+/// A friend's planet, still, with their name under it: a green dot by it
+/// while they are in the game, a gold one while their trade table waits on
+/// the player, and when they were last seen under that.
+class _PlanetTile extends StatelessWidget {
+  const _PlanetTile({
+    required this.friend,
+    required this.width,
+    required this.online,
+    required this.seen,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final FriendCard friend;
+  final double width;
+  final bool online;
+
+  /// How long ago they were last seen; '' keeps the line empty (so tiles
+  /// stay one height), null leaves it out.
+  final String? seen;
+  final BracketPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final f = friend;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundTap(onTap),
+      child: Container(
+        width: width,
+        color: palette.bg0,
+        padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
+        child: Column(
+          children: [
+            // The glow fades out before the tile's edge, and nothing it
+            // wears reaches the next one.
+            ClipRect(
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (rect) => const RadialGradient(
+                  colors: [Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+                  stops: [0.62, 1.0],
+                ).createShader(rect),
+                child: SizedBox.square(
+                  dimension: width - 8,
+                  // Not built yet: the plain grey one, dim.
+                  child: Opacity(
+                    opacity: f.planet == null ? 0.4 : 1,
+                    child: HomePlanetView(
+                      look: f.planet,
+                      fill: 0.62,
+                      animate: false,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (online) ...[
+                  const HomeNoticeDot(color: kFriendOnlineColor, size: 8),
+                  const SizedBox(width: 5),
+                ],
+                Flexible(
+                  child: Text(
+                    f.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: _mono(10.5, palette.ink, spacing: 0.8),
+                  ),
+                ),
+                // Their trade table waits on this player.
+                if (context.select<TradeService?, bool>(
+                  (t) => t?.attentionWith(f.uid) ?? false,
+                )) ...[
+                  const SizedBox(width: 5),
+                  HomeNoticeDot(color: _tokens.rewardGold, size: 8),
+                ],
+              ],
+            ),
+            if (seen case final line?) ...[
+              const SizedBox(height: 2),
+              Text(
+                line,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: _prose(context, palette.muted, size: 10),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
