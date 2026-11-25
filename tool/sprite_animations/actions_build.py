@@ -86,6 +86,7 @@ MANE_EYES = {
 MANE_INK = {
     # the Light ones: one warm amber-brown line, strong enough to read on a glowing body
     'HOR16': (150, 92, 24, 255), 'WNG16': (150, 92, 24, 255), 'PIP16': (150, 92, 24, 255), 'LET16': (150, 92, 24, 255), 'MAN16': (150, 92, 24, 255),
+    'MAN15': (24, 22, 48, 255),   # Darkmane: its eyes' own near-black, as the lids of a dark almond eye
     'MAN06': (255, 135, 70, 255), 'MAN14': (40, 105, 122, 255), 'LET11': (84, 62, 150, 255)}
 MANE_MODES = {'MAN05': ('sleep',), 'LET04': ('sleep',)}      # Steammane's eyes are drawn squeezed shut already: only relaxed for sleep
 
@@ -715,8 +716,8 @@ SLIVER_EYES = {'WNG16'}
 # a shut eye's line turned to lie along a slanted eye (degrees, anticlockwise)
 ARC_TILT = {'WNG16': 20}
 # a shut eye's line drawn smaller than the eye it replaces
-ARC_SCALE = {'WNG16': 0.6}
-COVER = {'WNG16': 'tight', 'MAN03': 'tight', 'PIP02': 'tight', 'LET11': 'tight', 'HOR03': 'far', 'HOR09': 'far', 'HOR11': 'wide', 'PIP03': 'wide', 'PIP08': 'wide'}
+ARC_SCALE = {'WNG16': 0.6, 'MAN15': 0.7}
+COVER = {'WNG16': 'tight', 'MAN03': 'tight', 'MAN15': 'tight', 'PIP02': 'tight', 'LET11': 'tight', 'HOR03': 'far', 'HOR09': 'far', 'HOR11': 'wide', 'PIP03': 'wide', 'PIP08': 'wide'}
 
 
 def deeper(c, v):
