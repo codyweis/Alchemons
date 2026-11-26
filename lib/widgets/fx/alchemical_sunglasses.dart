@@ -29,6 +29,14 @@ enum GlassesView {
     'WNG03': front,
     // Darkwing's head turns toward us.
     'WNG15': threeQuarter,
+    'MYS01': profile,
+    'MYS02': profile,
+    'MYS03': front,
+    'MYS04': front,
+    'MYS06': profile,
+    'MYS08': profile,
+    'MYS09': profile,
+    // The Mystics drawn anew: side on, or face on.
   };
 }
 

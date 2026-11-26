@@ -8,12 +8,13 @@ the tail swung from its root, a wave running out along it.
 usage: venv/bin/python mystics_build.py <scratch> overlay|build [ids...]
 (<scratch> holds a copy of manes2_build.py; the sheets go to <scratch>/mystics)
 """
-import sys, os, math
+import sys, os, math, re, json
 import numpy as np
 from scipy import ndimage as ndi
 from PIL import Image, ImageDraw, ImageFont
 S, MODE, ONLY = sys.argv[1], sys.argv[2], sys.argv[3:]
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(HERE))
 U = HERE + '/mystic_stills/'
 O = S + '/mystics'
 os.makedirs(O, exist_ok=True)
@@ -768,7 +769,152 @@ def build_attack(hid):
             break
         fit *= 0.82
     print(hid, P[hid]['n'], 'attack', 'fit x%.2f' % fit if fit < 1 else '', flush=True)
+    fits = {}
+    try:
+        fits = json.load(open(O + '/attack_fit.json'))
+    except (OSError, ValueError):
+        pass
+    fits[hid] = fit                                        # (for the costumes' attack tracks)
+    json.dump(fits, open(O + '/attack_fit.json', 'w'))
     return frames
+
+
+# ---- costumes: a hat (and the crown on it), a nose, sunglasses (and the monocle on them) ------
+# Placed by hand on the still (px): glasses = the point between the eyes and the eye-to-eye
+# spacing, or (a head side on) the one eye that shows and the lens's size; hat = its crown and
+# width; nose = its centre and radius; tilts in radians, clockwise. Every idle and attack frame
+# then moves them with the head, by the same fields that drew the frame.
+COSTUME = {
+    'MYS01': dict(view='profile', eyes=[(527, 420)], glasses=0.06, hat=(522, 318, 0.13), nose=(497, 452, 0.022)),
+    'MYS02': dict(view='profile', eyes=[(550, 443)], glasses=0.07, hat=(520, 300, 0.14), nose=(436, 506, 0.024), hat_tilt=-0.2),
+    'MYS03': dict(view='front', eyes=[(383, 670), (563, 677)], hat=(476, 380, 0.15), nose=(472, 722, 0.03), glasses_tilt=0.04),
+    'MYS04': dict(view='front', eyes=[(457, 507), (509, 505)], hat=(500, 334, 0.12), nose=(481, 542, 0.02)),
+    'MYS05': dict(view='threeQuarter', eyes=[(217, 620), (413, 617)], hat=(330, 548, 0.15), nose=(258, 678, 0.028)),
+    'MYS06': dict(view='profile', eyes=[(290, 597)], glasses=0.075, hat=(300, 452, 0.15), nose=(158, 650, 0.026), hat_tilt=-0.15),
+    'MYS07': dict(view='threeQuarter', eyes=[(173, 627), (287, 627)], hat=(240, 540, 0.13), nose=(140, 660, 0.024)),
+    'MYS08': dict(view='profile', eyes=[(443, 637)], glasses=0.07, hat=(452, 522, 0.13), nose=(372, 712, 0.026), hat_tilt=-0.1),
+    'MYS09': dict(view='profile', eyes=[(313, 277)], glasses=0.07, hat=(292, 248, 0.13), nose=(165, 338, 0.024), hat_tilt=-0.25),
+}
+
+
+def idle_field(hid, k):
+    """Where each point of the still is drawn in idle frame [k] (the wings aside)."""
+    cfg, st = M[hid], setup(hid)
+    bdx, bdy = body_disp(P[hid], k, cfg.get('body', 1.5), None)
+    if hid in WINGS_IDLE:
+        W = WINGS_IDLE[hid]
+        bdy = bdy - W['bob'] * (FLAP[(k - 1) % N] - FLAP[N - 1])
+    mx, my = ns['material_disp'](st['cfg'], st['fl'], st['d'], st['nx'], st['ny'], k % N)
+    return bdx + mx, bdy + my
+
+
+def attack_field(hid, k, fit):
+    """Where each point of the still is drawn in attack frame [k] (its shake included)."""
+    st = setup(hid)
+    bdx, bdy, _ = attack_pose(hid, ATK[hid], POSE[k], fit)
+    mx, my = ns['material_disp'](st['cfg'], st['fl'], st['d'], st['nx'], st['ny'], k % N)
+    sx, sy = ATK[hid].get('shake', [(0, 0)] * 10)[k]
+    return bdx + mx + sx, bdy + my + sy
+
+
+def moved(D, x, y):
+    return x + float(D[0][int(y), int(x)]), y + float(D[1][int(y), int(x)])
+
+
+def turn(D, x, y, r=60):
+    """How far the head about (x, y) is turned by D (radians, clockwise)."""
+    ax, ay = moved(D, x - r, y)
+    bx, by = moved(D, x + r, y)
+    return math.atan2(by - ay, bx - ax)
+
+
+def costume_fits(hid):
+    """(placements, per-frame fits, tilts, the attack's head track) for one species."""
+    c = COSTUME[hid]
+    eyes = c['eyes']
+    if len(eyes) == 2:
+        (ax, ay), (bx, by) = eyes
+        gx, gy, gs = (ax + bx) / 2, (ay + by) / 2, math.hypot(bx - ax, by - ay) / F
+    else:
+        (gx, gy), gs = eyes[0], c['glasses']
+    pts = {'sunglasses': (gx, gy, gs), 'partyHat': (c['hat'][0], c['hat'][1], c['hat'][2]), 'nose': c['nose']}
+    idle = [idle_field(hid, k) for k in range(N)]
+    place, frames = {}, {k: [] for k in pts}
+    for k in range(N):
+        mv = [(moved(idle[k], x, y)[0] - x, moved(idle[k], x, y)[1] - y) for x, y, _ in pts.values()]
+        mx_, my_ = sum(m[0] for m in mv) / 3, sum(m[1] for m in mv) / 3        # one move: they travel together
+        rot = turn(idle[k], gx, gy) - turn(idle[0], gx, gy)
+        for name, (x, y, s) in pts.items():
+            frames[name].append((round((x + mx_) / F, 4), round((y + my_) / F, 4), round(rot, 4)))
+    for name, (x, y, s) in pts.items():
+        place[name] = (frames[name][0][0], frames[name][0][1], round(s, 4))
+        frames[name] = [(f[0], f[1], round(f[2] - frames[name][0][2], 4)) for f in frames[name]]
+    tilts = {'partyHat': c.get('hat_tilt', 0.0), 'sunglasses': c.get('glasses_tilt', 0.0)}
+    fit = 1.0
+    try:
+        fit = json.load(open(O + '/attack_fit.json')).get(hid, 1.0)
+    except (OSError, ValueError):
+        pass
+    e0 = moved(idle[0], gx, gy)
+    r0 = turn(idle[0], gx, gy)
+    track = []
+    for k in range(10):
+        D = attack_field(hid, k, fit)
+        e = moved(D, gx, gy)
+        track.append((0, round((e[0] - e0[0]) / F, 4), round((e[1] - e0[1]) / F, 4), round(turn(D, gx, gy) - r0, 4)))
+    return place, frames, tilts, track
+
+
+def write_costumes(ids):
+    """The MYS rows of costume_fits.dart, costume_action_tracks.dart and the glasses' views."""
+    all_ = {h: costume_fits(h) for h in ids}
+    pth = REPO + '/lib/models/costume_fits.dart'
+    s = open(pth).read()
+    for h in ids:
+        s = re.sub(r"    '%s': \([-\d., e]+\),\n" % h, '', s)
+        s = re.sub(r"    '%s': \[\n(?:      \(.*\),\n)+    \],\n" % h, '', s)
+        s = re.sub(r"    '%s': -?[\d.]+,\n" % h, '', s)
+    a, b = s.index('const _tilts'), s.index('const _frameFits')
+    head, tilts, tail = s[:a], s[a:b], s[b:]
+    for name in ('partyHat', 'nose', 'sunglasses'):
+        key = '  FamilyCostume.%s: {\n' % name
+        rows = ''.join("    '%s': (%r, %r, %r),\n" % ((h,) + all_[h][0][name]) for h in ids)
+        i = head.index(key) + len(key)
+        head = head[:i] + rows + head[i:]
+        rows = ''.join("    '%s': [\n%s    ],\n" % (h, ''.join('      (%r, %r, %r),\n' % f for f in all_[h][1][name])) for h in ids)
+        i = tail.index(key) + len(key)
+        tail = tail[:i] + rows + tail[i:]
+    one = re.search(r"  FamilyCostume\.partyHat: \{([^\n]*)\},\n", tilts)
+    if one:                                                # (the hat's tilts on one line: opened out)
+        items = [x.strip() for x in one.group(1).split(',') if x.strip()]
+        tilts = tilts.replace(one.group(0), '  FamilyCostume.partyHat: {\n' + ''.join('    %s,\n' % x for x in items) + '  },\n')
+    for name in ('partyHat', 'sunglasses'):
+        key = '  FamilyCostume.%s: {\n' % name
+        i = tilts.index(key)
+        j = tilts.index('\n  },\n', i) + 1
+        rows = ''.join("    '%s': %r,\n" % (h, all_[h][2][name]) for h in ids if all_[h][2][name])
+        tilts = tilts[:j] + rows + tilts[j:]
+    open(pth, 'w').write(head + tilts + tail)
+    pth = REPO + '/lib/models/costume_action_tracks.dart'
+    s = open(pth).read()
+    for h in ids:
+        s = re.sub(r"  '%s': \[\n(?:    \[.*\],\n){4}  \],\n" % h, '', s)
+    blocks = ''.join("  '%s': [\n    [],\n    [],\n    [%s],\n    [],\n  ],\n" % (
+        h, ', '.join('(%d, %r, %r, %r)' % f for f in all_[h][3])) for h in ids)
+    i = s.index("  'PIP01': [\n")
+    s = s[:i] + blocks + s[i:]
+    open(pth, 'w').write(s)
+    pth = REPO + '/lib/widgets/fx/alchemical_sunglasses.dart'
+    s = open(pth).read()
+    for h in ids:
+        s = re.sub(r"    '%s': \w+,\n" % h, '', s)
+    rows = ''.join("    '%s': %s,\n" % (h, COSTUME[h]['view']) for h in ids if COSTUME[h]['view'] != 'threeQuarter')
+    key = "    'WNG15': threeQuarter,\n"
+    i = s.index(key) + len(key)
+    s = s[:i] + ('    // The Mystics drawn anew: side on, or face on.\n' if rows and '// The Mystics drawn anew' not in s else '') + rows + s[i:]
+    open(pth, 'w').write(s)
+    for h in ids:
+        print(h, 'costumes', all_[h][0], 'attack track', [f[1:3] for f in all_[h][3]][4])
 
 
 def overlay(ids):
@@ -800,25 +946,55 @@ def overlay(ids):
     Sx.save(O + '/overlay.png')
 
 
-def save_attack(hid, frames):
+def save_attack(hid, frames, name='fire_spritesheet'):
     """The sheet as the game takes it (600 px frames, 4 x 3), into <scratch>/actions for install_fires.py."""
     os.makedirs(S + '/actions', exist_ok=True)
     half = 600
     sheet = Image.new('RGBA', (4 * half, 3 * half))
     for k, f in enumerate(frames):
         sheet.paste(f.convert('RGBa').resize((half, half), Image.LANCZOS).convert('RGBA'), ((k % 4) * half, (k // 4) * half))
-    sheet.save('%s/actions/%s_fire_spritesheet.png' % (S, hid), optimize=True)
+    sheet.save('%s/actions/%s_%s.png' % (S, hid, name), optimize=True)
+
+
+def attack_eyes(hid):
+    """The albino's red eyes through the attack: the idle's eye layer (built by
+    test/albino_eyes_build_test.dart beside the idle sheet) for its first frame, carried
+    through the same fields that draw each attack frame. None if the species has none."""
+    p = '%s/assets/images/creatures/mystic/%s_%s_albino_eyes.png' % (REPO, hid, P[hid]['n'])
+    if not os.path.exists(p):
+        return None
+    ov = Image.open(p).convert('RGBA')
+    e = ov.size[0] // 4
+    src = np.array(ov.crop((0, 0, e, e)).convert('RGBa').resize((F, F), Image.BICUBIC)).astype(np.float32)
+    fit = json.load(open(O + '/attack_fit.json')).get(hid, 1.0)
+    out = []
+    for k in range(10):
+        Dx, Dy = attack_field(hid, k, fit)
+        f = np.clip(inv_warp(src, Dx, Dy), 0, 255)
+        out.append(Image.fromarray(f.astype(np.uint8), 'RGBa').convert('RGBA'))
+    return out
 
 
 ids = ONLY or sorted(P)
 if MODE == 'overlay':
     overlay(ids)
+elif MODE == 'costumes':                                   # the costumes' fits and tracks, written into the game
+    write_costumes(ids)
+elif MODE == 'attack_eyes':                                # only the albino eyes through the attack (after the idle's are rebuilt)
+    for h in ids:
+        eyes = attack_eyes(h)
+        if eyes:
+            save_attack(h, eyes, 'fire_eyes')
+            print(h, 'attack eyes', flush=True)
 elif MODE == 'attack':                                     # the attacks, and a sheet and a GIF of them to look at
     C2 = 220
     rows = []
     for h in ids:
         fr = build_attack(h)
         save_attack(h, fr)
+        eyes = attack_eyes(h)
+        if eyes:                                           # (install_fires.py lays it beside the attack)
+            save_attack(h, eyes, 'fire_eyes')
         rows.append((h, [ns['cell'](f, C2) for f in fr]))
     cs = Image.new('RGB', (110 + 10 * C2, len(rows) * C2), BG)
     d = ImageDraw.Draw(cs)

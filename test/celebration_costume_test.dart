@@ -170,7 +170,7 @@ void main() {
     }
     expect(
       FamilyCostume.fittedFamiliesText,
-      'Wings, Pips, Horns, Lets and Manes',
+      'Wings, Pips, Horns, Lets, Manes and Mystics',
     );
   });
 
@@ -267,7 +267,7 @@ void main() {
       expect(definition.stackable, true);
       expect(AlchemyEffectPaint.has(costume.previewKey), true);
       expect(InvKeys.alchemyItemFor(costume.previewKey), isNull);
-      expect(costume.placements.length, 86, reason: costume.tag);
+      expect(costume.placements.length, 95, reason: costume.tag);
       for (final family in ['WNG', 'PIP', 'HOR', 'LET']) {
         expect(
           costume.placements.keys.where((s) => s.startsWith(family)).length,
@@ -278,6 +278,11 @@ void main() {
       expect(
         costume.placements.keys.where((s) => s.startsWith('MAN')).length,
         18,
+      );
+      // The Mystics drawn anew.
+      expect(
+        costume.placements.keys.where((s) => s.startsWith('MYS')).length,
+        9,
       );
       for (final species in costume.tilts.keys) {
         expect(costume.placements, contains(species));

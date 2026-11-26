@@ -95,7 +95,7 @@ const double _liftR = 1.55, _liftG = 1.50, _liftB = 1.40;
 
 /// The species whose albinos have red eyes: those with an eye overlay. Every
 /// polished species but the Airlet and the Steammane, whose eyes are drawn
-/// shut.
+/// shut, and the Mystics drawn anew.
 const Set<String> kAlbinoEyeSpecies = {
   'HOR01', 'HOR02', 'HOR03', 'HOR04', 'HOR05', 'HOR06', 'HOR07', 'HOR08', //
   'HOR09', 'HOR10', 'HOR11', 'HOR12', 'HOR13', 'HOR14', 'HOR15', 'HOR16',
@@ -110,6 +110,9 @@ const Set<String> kAlbinoEyeSpecies = {
   'MAN01', 'MAN02', 'MAN03', 'MAN04', 'MAN06', 'MAN07', 'MAN08', 'MAN09', //
   'MAN10', 'MAN11', 'MAN12', 'MAN13', 'MAN14', 'MAN15', 'MAN16', 'MAN17',
   'MAN18',
+  // The Mystics drawn anew.
+  'MYS01', 'MYS02', 'MYS03', 'MYS04', 'MYS05', 'MYS06', 'MYS07', 'MYS08', //
+  'MYS09',
 };
 
 /// The eye overlay beside the sheet at [sheetPath] (a path under

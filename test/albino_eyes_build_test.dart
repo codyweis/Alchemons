@@ -122,6 +122,39 @@ const _tunes = <String, _Tune>{
     carry: true,
     ovals: [(0.007, 0.007, 0.0), (0.014, 0.009, 0.0)],
   ),
+  // The Mystics drawn anew: one drawn frame each, like the Manes, so every
+  // eye is found in frame 0 and carried with the head.
+  'MYS01': _Tune(carry: true),
+  'MYS02': _Tune(carry: true),
+  // Slits under a stone brow.
+  'MYS03': _Tune(
+    carry: true,
+    nudge: [(-0.0008, -0.0017), (-0.0008, -0.0008)],
+    ovals: [(0.018, 0.007, 0.15), (0.021, 0.006, -0.1)],
+    tolerance: 40,
+  ),
+  'MYS04': _Tune(carry: true),
+  'MYS05': _Tune(
+    carry: true,
+    nudge: [(-0.0017, -0.0017), (0.0, 0.0)],
+    ovals: [(0.0067, 0.013, 0.2), (0.0135, 0.009, -0.5)],
+    tolerance: 30,
+  ),
+  'MYS06': _Tune(carry: true, ovals: [(0.017, 0.019, 0.0)], tolerance: 40),
+  // White almonds in a dark face: all of each oval.
+  'MYS07': _Tune(
+    carry: true,
+    nudge: [(0.0015, -0.0008), (0.0, 0.0008)],
+    ovals: [(0.006, 0.02, 0.15), (0.026, 0.009, -0.78)],
+  ),
+  'MYS08': _Tune(carry: true),
+  // A slit, slanting up toward the back.
+  'MYS09': _Tune(
+    carry: true,
+    nudge: [(0.011, -0.006)],
+    ovals: [(0.032, 0.007, -0.34)],
+    tolerance: 30,
+  ),
   // Seeds moved off a lid, a glint or a pupil onto the iris.
   'HOR08': _Tune(nudge: [(-0.010, 0.005), (0.012, 0.001)]),
   'LET11': _Tune(nudge: [(0.019, 0.007), (-0.024, 0.001)]),
