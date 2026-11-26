@@ -2266,43 +2266,44 @@ class PlanetDungeonGame extends FlameGame {
   /// The planet guardian renders with its real Mystic sprite (per mysticId);
   /// the procedural body stays as fallback when no sheet is authored/loaded.
   static final Map<String, SpriteSheetDef> _guardianSheets = {
+    // MYS04: 1200 px frames, 8 of them in 2 rows (drawn anew from a still).
     'Roc': SpriteSheetDef(
       path: 'creatures/mystic/MYS04_airmystic_spritesheet.png',
-      totalFrames: 4,
-      rows: 1,
-      frameSize: Vector2(512, 512),
+      totalFrames: 8,
+      rows: 2,
+      frameSize: Vector2(1200, 1200),
       stepTime: 0.12,
     ),
-    // MYS01 sheet verified 3072×512 — 6 frames of 512×512, one row.
+    // MYS01: 1200 px frames, 8 of them in 2 rows (drawn anew from a still).
     'Simurgh': SpriteSheetDef(
       path: 'creatures/mystic/MYS01_firemystic_spritesheet.png',
-      totalFrames: 6,
-      rows: 1,
-      frameSize: Vector2(512, 512),
+      totalFrames: 8,
+      rows: 2,
+      frameSize: Vector2(1200, 1200),
       stepTime: 0.12,
     ),
-    // MYS02 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    // MYS02: 1200 px frames, 8 of them in 2 rows (drawn anew from a still).
     'Leviathan': SpriteSheetDef(
       path: 'creatures/mystic/MYS02_watermystic_spritesheet.png',
-      totalFrames: 4,
-      rows: 1,
-      frameSize: Vector2(512, 512),
+      totalFrames: 8,
+      rows: 2,
+      frameSize: Vector2(1200, 1200),
       stepTime: 0.12,
     ),
-    // MYS03 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    // MYS03: 1200 px frames, 8 of them in 2 rows (drawn anew from a still).
     'Terradon': SpriteSheetDef(
       path: 'creatures/mystic/MYS03_earthmystic_spritesheet.png',
-      totalFrames: 4,
-      rows: 1,
-      frameSize: Vector2(512, 512),
+      totalFrames: 8,
+      rows: 2,
+      frameSize: Vector2(1200, 1200),
       stepTime: 0.12,
     ),
-    // MYS06 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    // MYS06: 1200 px frames, 8 of them in 2 rows (drawn anew from a still).
     'Magmara': SpriteSheetDef(
       path: 'creatures/mystic/MYS06_lavamystic_spritesheet.png',
-      totalFrames: 4,
-      rows: 1,
-      frameSize: Vector2(512, 512),
+      totalFrames: 8,
+      rows: 2,
+      frameSize: Vector2(1200, 1200),
       stepTime: 0.12,
     ),
     // MYS13 sheet verified 2048×512 — 4 frames of 512×512, one row.
@@ -2321,28 +2322,28 @@ class PlanetDungeonGame extends FlameGame {
       frameSize: Vector2(512, 512),
       stepTime: 0.12,
     ),
-    // MYS07 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    // MYS07: 1200 px frames, 8 of them in 2 rows (drawn anew from a still).
     'Raikuma': SpriteSheetDef(
       path: 'creatures/mystic/MYS07_lightningmystic_spritesheet.png',
-      totalFrames: 4,
-      rows: 1,
-      frameSize: Vector2(512, 512),
+      totalFrames: 8,
+      rows: 2,
+      frameSize: Vector2(1200, 1200),
       stepTime: 0.12,
     ),
-    // MYS05 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    // MYS05: 1200 px frames, 8 of them in 2 rows (drawn anew from a still).
     'Boilrog': SpriteSheetDef(
       path: 'creatures/mystic/MYS05_steammystic_spritesheet.png',
-      totalFrames: 4,
-      rows: 1,
-      frameSize: Vector2(512, 512),
+      totalFrames: 8,
+      rows: 2,
+      frameSize: Vector2(1200, 1200),
       stepTime: 0.12,
     ),
-    // MYS09 sheet verified 2048x512 — 4 frames of 512x512, one row.
+    // MYS09: 1200 px frames, 8 of them in 2 rows (drawn anew from a still).
     'Frowyrm': SpriteSheetDef(
       path: 'creatures/mystic/MYS09_icemystic_spritesheet.png',
-      totalFrames: 4,
-      rows: 1,
-      frameSize: Vector2(512, 512),
+      totalFrames: 8,
+      rows: 2,
+      frameSize: Vector2(1200, 1200),
       stepTime: 0.12,
     ),
     // MYS14 sheet verified 2048×512 — 4 frames of 512×512, one row.
@@ -2361,12 +2362,12 @@ class PlanetDungeonGame extends FlameGame {
       frameSize: Vector2(512, 512),
       stepTime: 0.12,
     ),
-    // MYS08 sheet verified 2048×512 — 4 frames of 512×512, one row.
+    // MYS08: 1200 px frames, 8 of them in 2 rows (drawn anew from a still).
     'Bogdrya': SpriteSheetDef(
       path: 'creatures/mystic/MYS08_mudmystic_spritesheet.png',
-      totalFrames: 4,
-      rows: 1,
-      frameSize: Vector2(512, 512),
+      totalFrames: 8,
+      rows: 2,
+      frameSize: Vector2(1200, 1200),
       stepTime: 0.12,
     ),
     // MYS17 sheet verified 2048x512 — 4 frames of 512x512, one row.

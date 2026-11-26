@@ -2711,11 +2711,12 @@
       "name": "Simurgh",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "It rises like a flame made obedient, a warden-shaped fire guarding what survives the burn.",
+      "description": "Wings of fire raised, its burning tail curled beneath, it rises like a flame made obedient, guarding what survives the burn.",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "types": [
@@ -2735,11 +2736,12 @@
       "name": "Leviathan",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "Its body coils around stillness and depth, as though the relic it keeps was meant to drown memory before it surfaced.",
+      "description": "Its glass-clear coils hold stillness and depth, fins rising like breaking water over a relic meant to drown memory.",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 6,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "types": [
@@ -2759,11 +2761,12 @@
       "name": "Terradon",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "It carries the patience of buried stone, standing over its relic like pressure given hunger.",
+      "description": "It hunches between two columns of standing stone, the patience of buried rock over its relic like pressure given hunger.",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "types": [
@@ -2783,11 +2786,12 @@
       "name": "Roc",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "White and impossible, it circles like a warning drawn in air above what should not be reached.",
+      "description": "All cloud, trailing a ribbon of sky, it circles like a warning drawn in air above what should not be reached.",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "types": [
@@ -2807,11 +2811,12 @@
       "name": "Boilrog",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "Steam pours from it in heavy veils, hiding the boundary between body, heat, and the thing it was made to keep.",
+      "description": "Steam pours in heavy veils from the vents on its head and back, hiding the boundary between body, heat, and what it keeps.",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "types": [
@@ -2831,11 +2836,12 @@
       "name": "Magmara",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "Its cracked surface holds a slow catastrophe, as though the relic beneath it is being sealed by force alone.",
+      "description": "Molten veins run under its black hide and drip from its jaws, a slow catastrophe sealed by force, like the relic beneath it.",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "types": [
@@ -2855,11 +2861,12 @@
       "name": "Raikuma",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "Dark surface and blue fractures make it feel one impact from release, a sentinel built to answer trespass instantly.",
+      "description": "Lightning splits its dark body and leaps from its tail, a sentinel hound one impact from release, built to answer trespass.",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "types": [
@@ -2879,11 +2886,12 @@
       "name": "Bogdrya",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "Its swamp-heavy heads watch without urgency, certain that anything offered to the altar will sink before it reaches truth.",
+      "description": "Mud bubbles in its cratered shell as it watches without urgency, certain anything offered will sink before reaching truth.",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "types": [
@@ -2903,11 +2911,12 @@
       "name": "Frowyrm",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
-      "description": "Its frozen body carries the still cruelty of preserved things, beauty sharpened into refusal.",
+      "description": "Every edge of it is a shard of ice, crest to tail, with the still cruelty of preserved things, beauty sharpened into refusal.",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "types": [

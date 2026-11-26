@@ -57,6 +57,7 @@ def head_img(path):
 
 
 CREATURES = {c['id']: c for c in json.load(io.BytesIO(subprocess.check_output(['git', 'show', ORIG + ':assets/data/alchemons_creatures.json'])))['creatures']}
+CREATURES_NOW = {c['id']: c for c in json.load(open('assets/data/alchemons_creatures.json'))['creatures']}
 HORN_OFF = {'HOR01': [(0, 5), (1, -1), (1, 0)], 'HOR02': [(3, 5), (0, 10), (2, 10)], 'HOR03': [(4, 2), (0, 0), (0, 0)], 'HOR04': [(0, 5), (2, 5), (0, 0)],
             'HOR05': [(0, 2), (0, 7), (2, 3)], 'HOR06': [(0, 2), (1, 6), (-1, 3)], 'HOR07': [(-5, 6), (-11, 7), (-2, 4)], 'HOR08': [(0, -10), (0, 0), (0, -10)],
             'HOR09': [(1, 6), (0, 6), (3, 7)], 'HOR10': [(6, 1), (8, 6), (4, 1)], 'HOR11': [(-3, 1), (-7, 6), (0, 2)], 'HOR12': [(0, -17), (0, -5), (0, -10)],
@@ -172,18 +173,23 @@ KIN_P = {
 # everything further than r0 from (x, y) within that wedge; seq = which drawn frame each of the
 # ten is made from (a wing-beat told in its own frames); squash = how much of the crouch it takes.
 MYS_P = {
-    'MYS01': dict(head=None, face=0, seq=[0, 5, 0, 5, 3, 2, 4, 4, 5, 0], floats=True, squash=0.5, marks='lum'),
-    'MYS02': dict(head=(250, 150, 105), neck=(280, 290), face=-1, eyes=[(241, 194, 20, 16)], marks='lum', pct=95, amp=0.7),
-    'MYS03': dict(head=(300, 200, 110), neck=(290, 300), face=0, eyes=[(277, 197, 17, 16), (348, 200, 14, 16)], amp=0.7),
-    'MYS04': dict(head=(256, 150, 75), neck=(256, 250), face=0, eyes=[(239, 170, 12, 12), (285, 170, 12, 12)],
-                  fl=[(256, 290, 80, -145, 40, 0.07, 'solid'), (256, 290, 80, -35, 40, 0.07, 'solid')]),
-    'MYS05': dict(head=(125, 250, 75), neck=(190, 300), face=-1, eyes=[(73, 256, 15, 18), (140, 261, 21, 18)], marks='sv', amp=0.7),
-    'MYS06': dict(head=(425, 215, 70), neck=(340, 240), face=1, eyes=[(387, 186, 15, 17), (461, 188, 12, 14)], marks='sv', amp=0.7,
-                  fl=[(280, 210, 70, -100, 50, 0.14, 'flame')]),
-    'MYS07': dict(head=(130, 205, 95), neck=(230, 280), face=-1, eyes=[(109, 214, 13, 19), (191, 214, 22, 21)], marks='sv', amp=0.7),
-    'MYS08': dict(head='above', neck=(230, 300), band=(215, 70), face=-1, marks='sv', amp=0.6),
-    'MYS09': dict(head=(195, 155, 105), neck=(180, 290), face=1, eyes=[(205, 190, 18, 17)], amp=0.6,
-                  fl=[(300, 222, 8, -25, 55, 0.30, 'cloud')], glint=[(193, 22), (75, 130), (110, 45)]),
+    # MYS01-09 are drawn anew (mystic_stills/): 1200 px, idles from mystics_build.py, and their attack is
+    # mystics_build.py's `attack` now (a strike, not this gather and snap); these rows are kept to compare by
+    'MYS01': dict(head=(510, 440, 100), neck=(505, 570), face=0, floats=True, squash=0.5, eyes=[(525, 420, 11, 20)], marks='lum',
+                  fl=[(510, 380, 70, -90, 45, 0.18, 'flame')]),
+    'MYS02': dict(head=(545, 420, 130), neck=(620, 620), face=-1, eyes=[(545, 442, 20, 13)], marks='lum', pct=95, amp=0.7),
+    'MYS03': dict(head=(470, 680, 170), neck=(475, 830), face=0, eyes=[(385, 664, 14, 7), (560, 682, 24, 10)], amp=0.7),
+    'MYS04': dict(head=(500, 450, 110), neck=(540, 580), face=0, eyes=[(455, 507, 9, 11), (507, 505, 10, 12)],
+                  fl=[(540, 560, 200, -145, 40, 0.07, 'solid'), (540, 560, 200, -35, 40, 0.07, 'solid')]),
+    'MYS05': dict(head=(390, 640, 150), neck=(560, 760), face=-1, eyes=[(215, 620, 9, 12), (418, 624, 16, 9)], marks='sv', amp=0.7,
+                  fl=[(400, 570, 40, -95, 55, 0.12, 'flame')]),
+    'MYS06': dict(head=(290, 570, 140), neck=(440, 700), face=-1, eyes=[(285, 605, 22, 25)], marks='sv', amp=0.7,
+                  fl=[(760, 300, 40, -90, 60, 0.14, 'flame')]),
+    'MYS07': dict(head=(250, 620, 150), neck=(420, 700), face=-1, eyes=[(175, 627, 8, 18), (295, 627, 18, 16)], marks='lum', amp=0.7,
+                  fl=[(870, 450, 30, -45, 40, 0.10, 'bolt')]),
+    'MYS08': dict(head=(450, 650, 150), neck=(610, 720), face=-1, eyes=[(435, 632, 12, 22)], amp=0.6),
+    'MYS09': dict(head=(330, 260, 150), neck=(290, 470), face=-1, eyes=[(318, 273, 30, 10)], amp=0.6,
+                  glint=[(555, 150), (885, 315), (780, 145), (720, 440), (450, 355)]),
     'MYS10': dict(head=(115, 185, 75), neck=(150, 290), face=-1, eyes=[(90, 192, 8, 14), (130, 191, 13, 14)], amp=0.8,
                   fl=[(130, 200, 45, -70, 70, 0.10, 'flame')]),
     'MYS11': dict(head=(130, 265, 60), neck=(190, 330), face=-1, eyes=[(130, 280, 24, 24, 'w')], marks='lum', pct=95, amp=0.5,
@@ -198,7 +204,7 @@ MYS_P = {
     'MYS17': dict(head=(245, 100, 55), neck=(245, 150), face=0, squash=0.6, eyes=[(218, 110, 9, 10), (243, 107, 10, 10)], marks='lum',
                   fl=[(250, 200, 70, -160, 35, 0.06, 'solid'), (250, 200, 70, -20, 35, 0.06, 'solid')]),
 }
-MYS_TINT = {'MYS07': (150, 215, 255), 'MYS08': (225, 235, 95), 'MYS12': (255, 228, 90), 'MYS03': (205, 245, 80)}
+MYS_TINT = {'MYS07': (150, 215, 255), 'MYS08': (255, 190, 90), 'MYS12': (255, 228, 90), 'MYS03': (255, 215, 120)}
 NEW_P = dict(MSK_P, **KIN_P)
 NEW_P.update(MYS_P)
 
@@ -497,6 +503,8 @@ class Rig:
         self.id = hid
         self.hip = self.foot = None                     # (Horns and Manes: where the legs start and stand)
         c = CREATURES.get(hid)
+        if hid[:3] in NEW_FAMS:                          # (as they are now: some Mystics are drawn anew)
+            c = CREATURES_NOW[hid]
         if hid.startswith('MAN'):
             mp = RIGS['MAN']['P'][hid]
             c = dict(name=mp['n'].replace('mane2', 'mane (stones)').capitalize(), image='x.png', spriteData=dict(frameWidth=1200, totalFrames=8, rows=2))
@@ -508,7 +516,8 @@ class Rig:
         sheet = 'assets/images/' + c['image'].replace('.png', '_spritesheet.png')
         if hid[:3] in NEW_FAMS:                          # as drawn, from the working tree: one row, as many frames as it holds
             a = Image.open(sheet).convert('RGBA')
-            n, rows = a.size[0] // self.F0, 1
+            rows = sd.get('rows', 1)
+            n = a.size[0] // self.F0 * rows
         else:
             a = Image.open('%s/manes/%s_%s_idle2_spritesheet.png' % (S_DIR, hid, mp['n'])).convert('RGBA') if hid.startswith('MAN') else head_img(sheet)
             n, rows = sd['totalFrames'], sd.get('rows', 1)

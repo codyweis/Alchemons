@@ -86,45 +86,53 @@ void main() {
     expect(playing!.sizeRatio, 1);
   });
 
-  // A Mask, a Kin and a Mystic: a 512 px idle in one row, and no albino eye
-  // layer beside it. Each fires from its own sheet, plain and albino.
-  for (final idle512 in const [
-    'creatures/rare/MSK01_firemask_spritesheet.png',
-    'creatures/legendary/KIN15_darkkin_spritesheet.png',
-    'creatures/mystic/MYS06_lavamystic_spritesheet.png',
+  // A Mask, a Kin and a Mystic with no albino eye layer beside their idle:
+  // a 512 px idle in one row, or (the Mystics drawn anew from a still) a
+  // 1200 px idle in two rows over a 600 px attack. Each fires from its own
+  // sheet, plain and albino.
+  for (final (idle, frame) in const [
+    ('creatures/rare/MSK01_firemask_spritesheet.png', 512),
+    ('creatures/legendary/KIN15_darkkin_spritesheet.png', 512),
+    ('creatures/mystic/MYS13_poisonmystic_spritesheet.png', 512),
+    ('creatures/mystic/MYS06_lavamystic_spritesheet.png', 1200),
   ]) {
-    test('$idle512 fires, plain and albino, at its idle\'s size', () async {
-      final own512 = SpriteSheetDef(
-        path: idle512,
-        totalFrames: 4,
-        rows: 1,
-        frameSize: Vector2.all(512),
+    test('$idle fires, plain and albino, at its idle\'s size', () async {
+      final ownIdle = SpriteSheetDef(
+        path: idle,
+        totalFrames: frame == 512 ? 4 : 8,
+        rows: frame == 512 ? 1 : 2,
+        frameSize: Vector2.all(frame.toDouble()),
         stepTime: 0.12,
       );
-      final def = actionSheetFor(idle512, CreatureAction.fire, idleFrame: 512)!;
-      expect(def.frameSize, 512);
+      final side = frame == 512 ? 512 : 600;
+      final def = actionSheetFor(
+        idle,
+        CreatureAction.fire,
+        idleFrame: frame.toDouble(),
+      )!;
+      expect(def.frameSize, side);
       final images = Images();
       final codec = await ui.instantiateImageCodec(
         File('assets/images/${def.path}').readAsBytesSync(),
       );
       final image = (await codec.getNextFrame()).image;
       codec.dispose();
-      expect((image.width, image.height), (2048, 1536));
+      expect((image.width, image.height), (4 * side, 3 * side));
       images.add(def.path, image);
 
       final fire = CreatureFire(() => images);
-      fire.warm(own512, const SpriteVisuals());
+      fire.warm(ownIdle, const SpriteVisuals());
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      fire.play(0, own512, const SpriteVisuals());
+      fire.play(0, ownIdle, const SpriteVisuals());
       expect(fire.of(0), isNotNull);
-      expect(fire.of(0)!.sizeRatio, 1);
+      expect(fire.of(0)!.sizeRatio, frame / side);
       for (var i = 0; i < 60; i++) {
         fire.tick(0, 1 / 60);
       }
       expect(fire.of(0), isNull, reason: 'played through');
 
       const albino = SpriteVisuals(brightness: 1.45, saturation: 0);
-      fire.play(1, own512, albino);
+      fire.play(1, ownIdle, albino);
       for (var i = 0; i < 100 && fire.of(1) == null; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
